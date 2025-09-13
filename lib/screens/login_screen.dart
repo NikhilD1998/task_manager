@@ -1,18 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:task_manager/screens/register_screen.dart';
+import 'package:task_manager/screens/home_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:task_manager/providers/auth_provider.dart';
+import 'dart:developer';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  String email = '';
-  String password = '';
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  bool isLoading = false;
+  String? errorMessage;
+
+  Future<void> _login() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    log(
+      'Login attempt: email=${emailController.text}, password=${passwordController.text}',
+    );
+    try {
+      final user = await ref
+          .read(authProvider)
+          .login(emailController.text, passwordController.text);
+      if (user != null) {
+        log('Login successful for ${emailController.text}');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      }
+    } catch (e) {
+      log('Login error: $e');
+      setState(() {
+        errorMessage = e.toString();
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +91,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  if (errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
                   TextFormField(
+                    controller: emailController,
                     decoration: InputDecoration(
                       labelText: 'Email',
                       prefixIcon: const Icon(Icons.email),
@@ -66,10 +118,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
                       return null;
                     },
-                    onSaved: (value) => email = value ?? '',
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
+                    controller: passwordController,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock),
@@ -87,7 +139,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
                       return null;
                     },
-                    onSaved: (value) => password = value ?? '',
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -100,20 +151,23 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () {
-                        if (_formKey.currentState?.validate() ?? false) {
-                          _formKey.currentState?.save();
-                          // Handle login logic here
-                        }
-                      },
-                      child: Text(
-                        'Login',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
+                      onPressed: isLoading
+                          ? null
+                          : () {
+                              if (_formKey.currentState?.validate() ?? false) {
+                                _login();
+                              }
+                            },
+                      child: isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              'Login',
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 12),
